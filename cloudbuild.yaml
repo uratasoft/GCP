@@ -1,6 +1,6 @@
 steps:
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/my-image', '.']
+    args: ['build', '-t', 'gcr.io/aicreditscoring/my-image', '.']
 images:
-  - 'gcr.io/$PROJECT_ID/my-image'
+  - 'gcr.io/aicreditscoring/my-image'
 
