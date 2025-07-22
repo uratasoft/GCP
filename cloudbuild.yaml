@@ -3,4 +3,6 @@ steps:
     args: ['build', '-t', 'gcr.io/aicreditscoring/my-image', '.']
 images:
   - 'gcr.io/aicreditscoring/my-image'
+options:
+  logging: CLOUD_LOGGING_ONLY
 
