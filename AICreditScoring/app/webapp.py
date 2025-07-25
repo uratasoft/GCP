@@ -3,18 +3,20 @@ import pandas as pd
 import pickle
 import numpy as np
 
-# モデル読み込み
-with open("model.pkl", "rb") as f:
+# モデルとカテゴリマップの読み込み
+with open("models/model.pkl", "rb") as f:
     model = pickle.load(f)
 
-# カテゴリマップ読み込み
-with open("cat_maps.pkl", "rb") as f:
+with open("models/cat_maps.pkl", "rb") as f:
     cat_maps = pickle.load(f)
 
-CSV_FILE = "credit_data_predict.csv"
+# CSVファイルのパス
+CSV_FILE = "data/input.csv"
 
+# Flaskアプリケーションの初期化
 app = Flask(__name__)
 
+# HTMLテンプレート
 HTML_PAGE = """
 <!doctype html>
 <html lang="ja">
@@ -41,92 +43,66 @@ HTML_PAGE = """
 </html>
 """
 
-
 @app.route("/", methods=["GET"])
 def index():
     try:
-### ---------- １．データ取得 -------------------
+        # CSVファイルの読み込み
         df = pd.read_csv(CSV_FILE, encoding="utf-8-sig")
 
-        # 正方向のカテゴリ変換
+        # カテゴリマッピング（正方向）
         for col, mapping in cat_maps.items():
             if col in df.columns:
                 df[col] = df[col].map(mapping).fillna(0)
 
-        # DelinquencyInfo を一旦退避
+        # ターゲット列の退避
         delinquency_info_col = None
         if "DelinquencyInfo" in df.columns:
             delinquency_info_col = df["DelinquencyInfo"].copy()
             df = df.drop(columns=["DelinquencyInfo"])
 
+        # 特徴量（全19列）を抽出
         feature_cols = [
-            "Sex",
-            "Marital",
-            "Age",
-            "Income",
-            "JobType",
-            "Occupation",
-            "BorrowingRatio",
-            "CreditAppAmount",
-            "OtherDebts",
-            "DebtRestruct",
-            "Industry",
-            "Education",
-            "Dependents",
-            "OwnHouse",
-            "Foreigner",
-            "Phone",
-            "EmploymentYears",
-            "Guarantor",
-            "Collateral",
+            "Sex", "Marital", "Age", "Income", "JobType",
+            "Occupation", "BorrowingRatio", "CreditAppAmount",
+            "OtherDebts", "DebtRestruct", "Industry", "Education",
+            "Dependents", "OwnHouse", "Foreigner", "Phone",
+            "EmploymentYears", "Guarantor", "Collateral"
         ]
-
         X = df[feature_cols].copy()
 
-### ---------- ８．与信スコアリング ----------------------
-        # スコア予測
+        # スコアリング（延滞確率を出力）
         proba_list = model.predict_proba(X)[:, 1]
         df["Score"] = np.round(proba_list, 4)
 
+        # ターゲット列の復元（あれば）
         if delinquency_info_col is not None:
             df["DelinquencyInfo"] = delinquency_info_col
 
-        # リバースマップ作成
-        cat_maps_rev = {
-            col: {v: k for k, v in mapping.items()} for col, mapping in cat_maps.items()
-        }
-
+        # リバースマッピング
+        cat_maps_rev = {col: {v: k for k, v in mapping.items()} for col, mapping in cat_maps.items()}
         for col, mapping_rev in cat_maps_rev.items():
             if col in df.columns:
                 df[col] = df[col].map(mapping_rev).fillna("")
 
+        # 表示対象列（任意に調整可）
         display_cols = [
-            "No",
-            "Sex",
-            "Age",
-            "Income",
-            "BorrowingRatio",
-            "Industry",
-            "CreditAppAmount",
-            "OtherDebts",
-            "DebtRestruct",
-            "DelinquencyInfo",
-            "Score",
+            "No", "Sex", "Age", "Income", "BorrowingRatio", "Industry",
+            "CreditAppAmount", "OtherDebts", "DebtRestruct", "DelinquencyInfo", "Score"
         ]
 
-        # 延滞ハイリスクのスコアを赤で表示
+        # スコアが0.7以上なら赤く表示
         def highlight_risk(val):
             try:
                 return 'class="risk-high"' if float(val) >= 0.7 else ""
             except:
                 return ""
 
-        # Web用に項目名を表示
+        # テーブルをHTML形式に変換
         table_html = df[display_cols].to_html(
             index=False,
             escape=False,
             border=1,
-            formatters={"Score": lambda x: f"<span {highlight_risk(x)}>{x}</span>"},
+            formatters={"Score": lambda x: f"<span {highlight_risk(x)}>{x}</span>"}
         )
 
         return render_template_string(HTML_PAGE, table=table_html)
@@ -135,7 +111,3 @@ def index():
         return render_template_string(
             HTML_PAGE, table=f"<p style='color:red;'>エラー: {e}</p>"
         )
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)

@@ -4,17 +4,17 @@ FROM python:3.12-slim
 # 作業ディレクトリ
 WORKDIR /app
 
-# ライブラリ追加（← これが必要）
+# 依存ライブラリに必要なパッケージをインストール（LightGBMなど用）
 RUN apt-get update && apt-get install -y libgomp1
 
-# 必要ファイルをコピー
+# アプリケーションコードとモデル・データをコピー
 COPY . /app
 
-# 必要なPythonパッケージをインストール（pipアップグレード込み）
-#RUN pip install --no-cache-dir flask numpy pandas lightgbm scikit-learn
+# 依存パッケージのインストール（requirements.txt はプロジェクトルートにある前提）
 RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 5000
+# Flaskで使うポート
+EXPOSE 8080
 
-# Flaskアプリの起動
-CMD ["python", "predict.py"]
+# アプリ起動（main.pyがFlaskを呼び出す構成）
+CMD ["python", "main.py"]
