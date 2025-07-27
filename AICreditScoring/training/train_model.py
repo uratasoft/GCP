@@ -74,11 +74,11 @@ if (df["EmploymentYears"] > (df["Age"] - 15)).any():
 if bad_cols:
     raise ValueError(f"Error 妥当性エラー: {bad_cols}")
 
-# BorrowingRatio（一般的に使われるので計算実装）
+# BorrowingRatio（借入比率計算）
 if "BorrowingRatio" not in df.columns:
     df["BorrowingRatio"] = np.where(
         (df["Income"] > 0),
-        (df["CreditAppAmount"] + df["OtherDebts"]) / df["Income"],
+        (df["OtherDebts"]) / df["Income"],
         0.0,
     )
 
@@ -151,16 +151,20 @@ model = lgb.LGBMClassifier(
     objective="binary",  # 二値分類（例：延滞あり／なし）
     random_state=42,  # 乱数シード（再現性確保）
     verbosity=-1,  # 学習中の出力を抑制（ログ非表示）
+
     # モデル表現力と安定性
     n_estimators=700,  # 学習する決定木の数（多いほど複雑になる）
     learning_rate=0.0055,  # 学習率（小さいほど学習は遅いが安定）
+
     # 延滞の重み付け
     # scale_pos_weight=scale_pos_weight,  # クラス不均衡対策（少数派に重み付け）
     class_weight=class_weight,
     feature_fraction=0.8,  # 各木で使用する特徴量の割合（ランダム性）
+
     # 正則化の微調整
     reg_alpha=1,  # L1正則化（特徴量選択効果あり）
     reg_lambda=1,  # L2正則化（重みを滑らかにする）
+
     # 過学習とのバランス
     max_depth=4,  # 木の最大深さ（過学習防止）
     min_child_samples=8,  # 葉に必要な最小データ数（過学習防止）
@@ -201,13 +205,20 @@ print(f"AUC: {auc:.4f}")
 print("\n分類レポート:")
 print(classification_report(y_test, y_pred, digits=4, zero_division=0))
 
-# 出力保存
+# 与信判定結果出力
+# Name 列を復元して先頭列に
 results = X_test.copy()
+results.insert(0, "Name", df.loc[X_test.index, "Name"].values)
+
+# 推論結果を付加
 results["PredictedProbability"] = y_pred_proba
 results["Actual"] = y_test.values
+
+# CSV出力
 results.to_csv("individual_scores.csv", index=False, encoding="utf-8-sig")
 
-# === 成型後データを input.csv に出力（モデル学習前の最終ステージ）===
+
+# 与信評価データ成型後データを input.csv に出力（モデル学習前の最終ステージ）
 df_out = X.copy()
 df_out["DelinquencyInfo"] = y
 df_out.insert(0, "Name", df["Name"])  # Name列を先頭に再挿入（必須）
